@@ -18,7 +18,6 @@ See `tests/SOFTWARE_RESULTS.md` and `tests/HARDWARE_ACCEPTANCE.md` for evidence.
 * `COMPATIBILITY.md`: actual functionality, restrictions and outstanding work.
 * `FLASHING.md`: image layout, backup requirements and recovery.
 * `USER_GUIDE.md`: controls and operating instructions.
-* `docs/MeshQuokka-User-Manual.pdf`: complete PDF manual (included in source distribution).
 * `docs/USER_MANUAL.md`: editable complete manual source.
 * `tests/HARDWARE_ACCEPTANCE.md`: tests still requiring the device and peers.
 
