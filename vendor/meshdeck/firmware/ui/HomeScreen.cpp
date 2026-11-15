@@ -1,0 +1,199 @@
+#include "AllScreens.h"
+#include "../MyMesh.h"
+#include <RTClib.h>
+
+struct AppDef { const char* label; ScreenId scr; uint16_t color; char glyph; bool disc; };
+static const AppDef APPS[] = {
+  { "Chat",      SCR_CHAT,      C_ACCENT, 'C', false },
+  { "Contacts",  SCR_CONTACTS,  C_GREEN,  '@', false },
+  { "Discover",  SCR_LASTHEARD, C_CYAN,   '*', true  },   // advert + jump to Heard
+  { "Heard",     SCR_LASTHEARD, C_YELLOW, 'H', false },
+  { "Repeaters", SCR_REPEATERS, C_ORANGE, 'R', false },
+  { "Map",       SCR_MAP,       C_CYAN,   'M', false },
+  { "NewMaps",   SCR_NEWMAPS,   C_GREEN,  'N', false },   // OSM multi-layer vector
+  { "Radio",     SCR_DIAG,      C_GREEN,  'i', false },   // diagnostics
+  { "Trace",     SCR_TRACE,     C_PURPLE, 'T', false },
+  { "GPS",       SCR_GPS,       C_PINK,   'G', false },
+  { "Terminal",  SCR_TERMINAL,  C_FG,     '>', false },
+  { "Bluetooth", SCR_BLE,       C_CYAN,   'B', false },
+  { "Settings",  SCR_SETTINGS,  C_FG_DIM, 'S', false },
+  { "WiFi",      SCR_WIFI,      C_ACCENT, 'W', false },
+  { "Channels",  SCR_CHANNELS,  C_ORANGE, '#', false },
+};
+#define N_APPS ((int)(sizeof(APPS) / sizeof(APPS[0])))
+
+// grid layout: 5 rows x 3 cols (15 cells; N_APPS must fit)
+// GRID_Y0 must sit below GPS/WiFi line (baseline ~86 + 8px font ~ 94)
+#define GRID_X0   14
+#define GRID_Y0   100
+#define GRID_ROWS 5
+#define CELL_W    100
+#define CELL_H    27   // 100 + 5*27 = 235 < 240
+
+// open an app tile: Discover sends a flood advert first, everything else just navigates
+static void openApp(UITask& ui, int i) {
+  if (APPS[i].scr == SCR_SOS && ui.set.sos_disabled) {
+    ui.toast("SOS is disabled (Settings)", C_YELLOW);
+    return;
+  }
+  if (APPS[i].disc) ui.discover();
+  else ui.go(APPS[i].scr);
+}
+
+void HomeScreen::draw() {
+  GFXcanvas16& c = ui.cv();
+  c.fillScreen(C_BG);
+  c.setTextSize(2); c.setTextColor(C_ACCENT);
+  c.setCursor((SCREEN_W - 10 * 12) / 2, 3); c.print("MeshQuokka");
+  c.setTextSize(1);
+  c.fillRoundRect(265,27,51,19,4,C_BG_RAISED);c.setTextColor(C_ACCENT);
+  c.setCursor(275,33);c.print("About");
+
+  // Compact clock below the app title; retain space for date and node name.
+  char clk[8];
+  ui.fmtClock(clk, sizeof(clk));
+  c.setTextSize(3);
+  c.setTextColor(C_FG);
+  c.setCursor((SCREEN_W - strlen(clk) * 18) / 2, 30);
+  c.print(clk);
+
+  // date + node name
+  uint32_t e = ui.localEpoch();
+  c.setTextSize(1);
+  c.setTextColor(C_FG_DIM);
+  if (e > 1000000000) {
+    DateTime dt(e);
+    static const char* DOW[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    char d[40];
+    snprintf(d, sizeof(d), "%s %02d/%02d/%04d", DOW[dt.dayOfTheWeek()], dt.day(), dt.month(), dt.year());
+    c.setCursor(SCREEN_W / 2 - strlen(d) * 3, 62);
+    c.print(d);
+  }
+  char nn[48];
+  snprintf(nn, sizeof(nn), "%s  |  %d unread", ui.prefs ? ui.prefs->node_name : "?", ui.store.totalUnread());
+  c.setCursor(SCREEN_W / 2 - strlen(nn) * 3, 76);
+  c.setTextColor(C_FG_FAINT);
+  c.print(nn);
+
+  // battery + mesh in corners
+  char b[16];
+  int pct = ui.batteryPercent();
+  if (pct >= 0) {
+    snprintf(b, sizeof(b), "%d%%", pct);
+    c.setTextColor(pct > 20 ? C_FG_DIM : C_RED);
+    c.setCursor(SCREEN_W - 8 - strlen(b) * 6, 8);
+    c.print(b);
+  }
+  int bars = ui.meshBars();
+  for (int i = 0; i < 4; i++) {
+    int bh = 3 + i * 3;
+    c.fillRect(8 + i * 5, 20 - bh, 3, bh, i < bars ? C_ACCENT : C_FG_FAINT);
+  }
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(8, 26);
+  c.print("mesh");
+
+  // combined GPS + WiFi status line, placed BELOW the clock/date/name so it
+  // never overlaps the big clock digits
+  {
+    char g[36];
+    uint16_t gcol;
+    if (ui.prefs && ui.prefs->gps_enabled) {
+      if (ui.gpsFix() && ui.sensors) {
+        snprintf(g, sizeof(g), "GPS %.4f,%.4f", ui.sensors->node_lat, ui.sensors->node_lon);
+        gcol = C_GREEN;
+      } else {
+        auto* gps=ui.sensors?ui.sensors->getLocationProvider():nullptr;
+        bool linked=gps && gps->validSentences() && uint32_t(millis()-gps->lastSentenceMillis())<10000;
+        strcpy(g, linked ? "GPS data / no fix" : "GPS waiting for data");
+        gcol = C_YELLOW;
+      }
+    } else {
+      strcpy(g, "GPS off");
+      gcol = C_FG_FAINT;
+    }
+    int ws = ui.wifiState();
+    char w[24];
+    uint16_t wcol;
+    if (ws == 2)      { snprintf(w, sizeof(w), "WiFi %s", ui.wifiSsid()); wcol = C_GREEN; }
+    else if (ws == 1) { strcpy(w, "WiFi..."); wcol = C_YELLOW; }
+    else              { strcpy(w, "WiFi off"); wcol = C_FG_FAINT; }
+
+    int total_w = (strlen(g) + 3 + strlen(w)) * 6;   // GPS + "   " + WiFi
+    int x = SCREEN_W / 2 - total_w / 2;
+    if (x < 6) x = 6;
+    // Keep above app grid (GRID_Y0); leave a few px of air
+    c.setCursor(x, 86);
+    c.setTextColor(gcol);   c.print(g);
+    c.setTextColor(C_FG_FAINT); c.print("   ");
+    c.setTextColor(wcol);   c.print(w);
+  }
+
+  // app grid 5x3 - starts below GPS/WiFi status
+  for (int i = 0; i < N_APPS; i++) {
+    int gx = GRID_X0 + (i % 3) * CELL_W;
+    int gy = GRID_Y0 + (i / 3) * CELL_H;
+    bool sel = i == _sel;
+    const int tile_h = CELL_H - 4;
+    c.fillRoundRect(gx, gy, CELL_W - 8, tile_h, 5, sel ? C_BG_RAISED : C_BG_ALT);
+    if (sel) c.drawRoundRect(gx, gy, CELL_W - 8, tile_h, 5, APPS[i].color);
+    // glyph badge (slightly smaller so CELL_H=27 still looks balanced)
+    c.fillRoundRect(gx + 5, gy + 3, 18, 18, 4, APPS[i].color);
+    c.setTextSize(2);
+    c.setTextColor(C_BG);
+    c.setCursor(gx + 8, gy + 5);
+    c.write(APPS[i].glyph);
+    c.setTextSize(1);
+    c.setTextColor(sel ? C_FG : C_FG_DIM);
+    c.setCursor(gx + 28, gy + 9);
+    c.print(APPS[i].label);
+    // unread badge on chat
+    if (APPS[i].scr == SCR_CHAT) {
+      int u = ui.store.totalUnread();
+      if (u > 0) {
+        c.fillCircle(gx + CELL_W - 16, gy + 8, 6, C_RED);
+        c.setTextColor(0xFFFF);
+        c.setCursor(gx + CELL_W - 16 - (u > 9 ? 6 : 3), gy + 5);
+        c.print(u > 99 ? 99 : u);
+      }
+    }
+  }
+}
+
+bool HomeScreen::key(uint8_t k) {
+  if(k=='?'){ui.go(SCR_ABOUT);return true;}
+  if (k >= '1' && k <= '9') {
+    openApp(ui, k - '1');
+    return true;
+  }
+  if (k == 0x0D) { openApp(ui, _sel); return true; }
+  return false;
+}
+
+bool HomeScreen::nav(NavEvent e) {
+  switch (e) {
+    case NAV_UP:    if (_sel >= 3) _sel -= 3; return true;
+    case NAV_DOWN:  if (_sel < N_APPS - 3) _sel += 3; return true;
+    case NAV_LEFT:  if (_sel % 3) _sel--; return true;
+    case NAV_RIGHT: if (_sel % 3 < 2 && _sel + 1 < N_APPS) _sel++; return true;
+    case NAV_SELECT: openApp(ui, _sel); return true;
+    case NAV_BACK:
+      // already at home - do nothing (never blank the screen here)
+      return true;
+    default: return false;
+  }
+}
+
+bool HomeScreen::touch(const TouchEvent& e) {
+  if (e.kind != TouchEvent::TAP) return false;
+  if(e.x>=262 && e.y>=24 && e.y<50){ui.go(SCR_ABOUT);return true;}
+  if (e.y < GRID_Y0) return true;
+  int col = (e.x - GRID_X0) / CELL_W;
+  int row = (e.y - GRID_Y0) / CELL_H;
+  int idx = row * 3 + col;
+  if (col >= 0 && col < 3 && row >= 0 && row < GRID_ROWS && idx < N_APPS) {
+    _sel = idx;
+    openApp(ui, _sel);
+  }
+  return true;
+}

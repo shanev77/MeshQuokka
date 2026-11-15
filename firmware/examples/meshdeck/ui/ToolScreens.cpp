@@ -1,0 +1,440 @@
+#include <esp_heap_caps.h>
+#include "AllScreens.h"
+#include "../MyMesh.h"
+#include <helpers/AdvertDataHelpers.h>
+#include <helpers/TxtDataHelpers.h>
+#include <math.h>
+
+// ============================================================ Last heard
+
+#define LH_ROW_H 22
+#define LH_TOP   (STATUS_H + 30)
+#define LH_VIS   ((SCREEN_H - LH_TOP - 14) / LH_ROW_H)
+static double distKm(double lat1, double lon1, double lat2, double lon2) {
+  double dlat = (lat2 - lat1) * 0.0174533;
+  double dlon = (lon2 - lon1) * 0.0174533;
+  double a = sin(dlat / 2) * sin(dlat / 2) +
+             cos(lat1 * 0.0174533) * cos(lat2 * 0.0174533) *
+             sin(dlon / 2) * sin(dlon / 2);
+  return 6371.0 * 2 * atan2(sqrt(a), sqrt(1 - a));
+}
+void LastHeardScreen::draw() {
+  GFXcanvas16& c = ui.cv();
+  c.fillScreen(C_BG);
+  ui.drawStatusBar("Last heard");
+
+  c.setTextSize(1);
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(6, STATUS_H + 3);
+  c.printf("RX %lu  errors %lu  %s", (unsigned long)ui.rxCount(),
+    (unsigned long)ui.radioRxErrors(), ui.radioReceiving() ? "listening" : "busy / retry");
+  c.setCursor(6, STATUS_H + 17);
+  c.print(_traffic ? "Packet activity" : "Named adverts");
+  c.fillRoundRect(246, STATUS_H + 13, 72, 16, 3, C_ACCENT_DK);
+  c.setTextColor(0xFFFF);
+  c.setCursor(252, STATUS_H + 17); c.print(_traffic ? "Nodes [t]" : "Traffic[t]");
+  c.setTextColor(C_FG_FAINT);
+  if (_traffic && ui.mesh) {
+    auto* m=ui.mesh;
+    c.setCursor(6, LH_TOP + 2);
+    c.printf("Valid %lu Self %lu Duplicate %lu", (unsigned long)m->advertCount(mesh::Mesh::ADV_VALID), (unsigned long)m->advertCount(mesh::Mesh::ADV_SELF), (unsigned long)m->advertCount(mesh::Mesh::ADV_DUPLICATE));
+    c.setCursor(6, LH_TOP + 14);
+    c.printf("Old %lu Bad sig %lu Bad data %lu", (unsigned long)m->advertCount(mesh::Mesh::ADV_OLD), (unsigned long)m->advertCount(mesh::Mesh::ADV_BAD_SIGNATURE), (unsigned long)(m->advertCount(mesh::Mesh::ADV_BAD_DATA)+m->advertCount(mesh::Mesh::ADV_SHORT)));
+    c.setCursor(6,LH_TOP+26);
+    c.printf("Ch RX %lu decoded %lu saved %lu",(unsigned long)m->channelCount(mesh::Mesh::CH_SEEN),(unsigned long)m->channelCount(mesh::Mesh::CH_DECRYPTED),(unsigned long)m->channelCount(mesh::Mesh::CH_STORED));
+    c.setCursor(6,LH_TOP+38);
+    c.printf("No key %lu MAC %lu dup %lu drop %lu",(unsigned long)m->channelCount(mesh::Mesh::CH_NO_KEY),(unsigned long)m->channelCount(mesh::Mesh::CH_BAD_MAC),(unsigned long)m->channelCount(mesh::Mesh::CH_DUPLICATE),(unsigned long)(m->channelCount(mesh::Mesh::CH_SHORT)+m->channelCount(mesh::Mesh::CH_BAD_TEXT)+m->channelCount(mesh::Mesh::CH_STORE_FAILED)));
+    int count=m->activityCount();
+    if (_trafficTop >= count) _trafficTop=count ? count-1 : 0;
+    for (int row=0;row<5 && _trafficTop+row<count;row++) {
+      const RxActivity* e=m->activityAt(_trafficTop+row);
+      int y=LH_TOP+54+row*23;
+      c.setTextColor(C_FG); c.setCursor(6,y);
+      c.printf("%lus %-11s %dB %ddBm %+.1f", (unsigned long)((millis()-e->at)/1000),e->label(),e->length,e->rssi,e->snr4/4.0f);
+      c.setTextColor(C_FG_FAINT);c.setCursor(6,y+10);
+      if (e->headerValid) c.printf("%u hops %uB/path  relay: %s",e->hops,e->width,e->relay[0]?e->relay:"--");
+      else c.print("Header rejected; no identity inferred");
+    }
+    if (!count) {c.setCursor(10,LH_TOP+64);c.print("Awaiting radio packets...");}
+    c.setCursor(6,SCREEN_H-10);c.print("Up/down: history. Relay ID is unverified.");
+    return;
+  }
+
+  int n = ui.heardCount();
+  if (n == 0) {
+    c.setTextColor(C_FG_FAINT);
+    c.setCursor(18, 91); c.print("No node adverts received this session.");
+    c.setCursor(18, 113); c.print(ui.rxCount() ? "Radio packets received; awaiting adverts." : "No radio packets received since boot.");
+    c.setCursor(18, 139); c.printf("%.3f MHz / SF%u / BW%.1f / CR%u", ui.prefs->freq, ui.prefs->sf, ui.prefs->bw, ui.prefs->cr);
+    c.setCursor(18, 164); c.print("Match a known peer's exact radio profile.");
+    c.setCursor(18, 183); c.print("Discover sends your advert, then listens.");
+    c.setCursor(18, 207); c.printf("Menu listens too. Uptime %lu min",(unsigned long)(millis()/60000));
+    return;
+  }
+
+  // keep selection in range
+  if (_sel < 0) _sel = 0;
+  if (_sel >= n) _sel = n - 1;
+  if (_sel < _top) _top = _sel;
+  if (_sel >= _top + LH_VIS) _top = _sel - LH_VIS + 1;
+
+  double slat, slon;
+  bool have_pos = ui.ownPos(slat, slon);
+
+  for (int i = _top; i < n && i - _top < LH_VIS; i++) {
+    const HeardEntry* e = ui.heardAt(i);
+    if (!e) continue;
+    int y = LH_TOP + (i - _top) * LH_ROW_H;
+
+    bool selected = (i == _sel);
+    c.fillRoundRect(2, y, SCREEN_W - 4, LH_ROW_H - 2, 4,
+                    selected ? C_ACCENT_DK : C_BG_ALT);
+
+    uint16_t tc = e->type == ADV_TYPE_REPEATER ? C_ORANGE :
+                  e->type == ADV_TYPE_ROOM     ? C_PURPLE : C_CYAN;
+    c.fillRect(2, y, 3, LH_ROW_H - 2, tc);
+
+    char nm[19];
+    ellipsize(nm, sizeof(nm), e->name);
+    c.setTextColor(selected ? C_FG : C_FG);
+    c.setCursor(10, y + 3);
+    c.print(nm);
+
+    char ago[8];
+    ui.fmtAgo(ago, sizeof(ago), e->at);
+    char line[64];
+    char dist[12] = "-";
+    if (have_pos && (e->lat || e->lon)) {
+      double d = distKm(slat, slon, e->lat / 1000000.0, e->lon / 1000000.0);
+      if (d < 1) snprintf(dist, sizeof(dist), "%dm", (int)(d * 1000));
+      else snprintf(dist, sizeof(dist), "%.1fkm", d);
+    }
+    char hops[8];
+    if (e->hops == 0xFF || e->hops == 0) strcpy(hops, "direct");
+    else snprintf(hops, sizeof(hops), "%d", e->hops);
+    snprintf(line, sizeof(line), "%-5s %-5s %-5d %-5s %s",
+             ago, StrHelper::ftoa(e->snr4 / 4.0f), e->rssi, hops, dist);
+    c.setTextColor(C_FG_DIM);
+    c.setCursor(124, y + 3);
+    c.print(line);
+
+    float snr = e->snr4 / 4.0f;
+    uint16_t qc = snr > 2 ? C_GREEN : snr > -8 ? C_YELLOW : C_RED;
+    c.fillCircle(SCREEN_W - 10, y + LH_ROW_H / 2 - 1, 3, qc);
+
+    c.setTextColor(C_FG_FAINT);
+    c.setCursor(10, y + 12);
+    c.print(e->type == ADV_TYPE_REPEATER ? "repeater" :
+            e->type == ADV_TYPE_ROOM     ? "room" : "companion");
+  }
+
+  // hint
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(6, SCREEN_H - 10);
+  c.print("Enter/Select = save as contact");
+}
+
+void LastHeardScreen::addSelected() {
+  int n = ui.heardCount();
+  if (_sel < 0 || _sel >= n) return;
+
+  const HeardEntry* e = ui.heardAt(_sel);
+  if (!e) return;
+
+  if (!ui.mesh) return;
+
+  // Already in the mesh contacts table?
+  ContactInfo* live = ui.mesh->lookupContactByPubKey(e->prefix, 6);
+  if (live) {
+    ui.mesh->saveContacts();  // ensure disk matches RAM
+    ui.toast("Already in contacts", C_YELLOW);
+    return;
+  }
+
+  // Need a full ContactInfo from the recent-advert cache (auto-add may be off)
+  ContactInfo* recent = ui.findRecentContact(e->prefix);
+  if (!recent) {
+    ui.toast("Full advert not in memory - wait for another advert", C_YELLOW);
+    return;
+  }
+
+  if (ui.mesh->addContact(*recent)) {
+    ui.mesh->saveContacts();  // was RAM-only before - vanished on reboot
+    ui.toast("Contact saved", C_GREEN);
+  } else {
+    ui.toast("Contact list full", C_RED);
+  }
+}
+
+bool LastHeardScreen::nav(NavEvent e) {
+  if (_traffic) {
+    if (e == NAV_UP) { if (_trafficTop > 0) --_trafficTop; return true; }
+    if (e == NAV_DOWN) { if (ui.mesh && _trafficTop+5 < (int)ui.mesh->activityCount()) ++_trafficTop; return true; }
+    return false; // Let global Back/Home handlers run; do not trap navigation.
+  }
+  int n = ui.heardCount();
+  if (n == 0) return false;
+
+  switch (e) {
+    case NAV_UP:
+      if (_sel > 0) _sel--;
+      return true;
+    case NAV_DOWN:
+      if (_sel < n - 1) _sel++;
+      return true;
+    case NAV_SELECT:
+      addSelected();
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool LastHeardScreen::key(uint8_t k) {
+  if (k == 't' || k == 'T') { _traffic=!_traffic; _trafficTop=0; return true; }
+  if (_traffic) return false;
+  if (k == 0x0D) {          // Enter
+    addSelected();
+    return true;
+  }
+  return false;
+}
+
+bool LastHeardScreen::touch(const TouchEvent& e) {
+  if (e.kind != TouchEvent::TAP) return false;
+  if (e.x >= 246 && e.y >= STATUS_H+13 && e.y < LH_TOP) { _traffic=!_traffic; _trafficTop=0; return true; }
+  if (_traffic) return false;
+  if (e.y < LH_TOP) return false;
+
+  int row = (e.y - LH_TOP) / LH_ROW_H;
+  int idx = _top + row;
+  if (idx < 0 || idx >= ui.heardCount()) return false;
+
+  if (idx == _sel) {
+    // second tap on the already-selected row -> save
+    addSelected();
+  } else {
+    _sel = idx;
+  }
+  return true;
+}
+
+// ============================================================ Noise floor
+
+void NoiseScreen::draw() {
+  GFXcanvas16& c = ui.cv();
+  c.fillScreen(C_BG);
+  ui.drawStatusBar("Noise floor");
+
+  const int GX = 34, GY = STATUS_H + 10, GW = SCREEN_W - GX - 8, GH = 150;
+  const int DB_TOP = -60, DB_BOT = -130;   // y-axis range
+
+  c.drawRect(GX, GY, GW, GH, C_FG_FAINT);
+  c.setTextSize(1);
+  for (int db = DB_TOP; db >= DB_BOT; db -= 10) {
+    int y = GY + (DB_TOP - db) * GH / (DB_TOP - DB_BOT);
+    c.drawFastHLine(GX, y, GW, C_MAP_GRID);
+    char lbl[8];
+    snprintf(lbl, sizeof(lbl), "%d", db);
+    c.setTextColor(C_FG_FAINT);
+    c.setCursor(4, y - 3);
+    c.print(lbl);
+  }
+
+  int head;
+  const int8_t* ring = ui.noiseRing(head);
+  int px = -1, py = -1;
+  int mn = 0, mx = -200;
+  long sum = 0;
+  int cnt = 0;
+  for (int i = 0; i < NOISE_SAMPLES; i++) {
+    int8_t v = ring[(head + i) % NOISE_SAMPLES];
+    if (v == -128) continue;
+    int x = GX + i * GW / NOISE_SAMPLES;
+    int y = GY + (DB_TOP - v) * GH / (DB_TOP - DB_BOT);
+    if (y < GY) y = GY;
+    if (y > GY + GH) y = GY + GH;
+    if (px >= 0) c.drawLine(px, py, x, y, C_ACCENT);
+    px = x; py = y;
+    if (v < mn) mn = v;
+    if (v > mx) mx = v;
+    sum += v;
+    cnt++;
+  }
+
+  // stats footer
+  c.setTextColor(C_FG);
+  c.setCursor(8, GY + GH + 10);
+  char s[80];
+  if (cnt) {
+    snprintf(s, sizeof(s), "now %d dBm   min %d   max %d   avg %d", ui.lastNoise(), mn, mx, (int)(sum / cnt));
+  } else {
+    snprintf(s, sizeof(s), "sampling...");
+  }
+  c.print(s);
+
+  c.setTextColor(C_FG_DIM);
+  c.setCursor(8, GY + GH + 24);
+  if (ui.lastRxMillis()) {
+    snprintf(s, sizeof(s), "last rx: rssi %d dBm  snr %s dB  (%us ago)",
+             (int)ui.lastRxRssi(), StrHelper::ftoa(ui.lastRxSnr()),
+             (unsigned)((millis() - ui.lastRxMillis()) / 1000));
+  } else {
+    snprintf(s, sizeof(s), "last rx: none yet");
+  }
+  c.print(s);
+
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(8, GY + GH + 38);
+  c.print("80 second window, 4 samples/sec");
+}
+
+// ============================================================ Trace route
+
+void TraceScreen::enter() {
+  rebuild();
+  _picking = ui.trace.tag == 0;
+}
+
+void TraceScreen::rebuild() {
+  _n = 0;
+  if (!_prefixes) _prefixes = (uint8_t (*)[6])heap_caps_malloc(MAX_CONTACTS * 6, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!_names) _names = (char (*)[28])heap_caps_malloc(MAX_CONTACTS * 28, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!_hops) _hops = (uint8_t*)heap_caps_malloc(MAX_CONTACTS * 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!_prefixes || !_names || !_hops) { ui.toast("Not enough memory for contact list", C_RED); return; }
+  int n = ui.mesh->getNumContacts();
+  for (int i = 0; i < n && _n < MAX_CONTACTS; i++) {
+    ContactInfo ct;
+    if (!ui.mesh->getContactByIdx(i, ct)) continue;
+    if (ct.out_path_len == 0xFF) continue;   // need a known path
+    memcpy(_prefixes[_n], ct.id.pub_key, 6);
+    StrHelper::strncpy(_names[_n], ct.name, sizeof(_names[_n]));
+    _hops[_n] = ct.out_path_len & 63;
+    _n++;
+  }
+  if (_sel >= _n) _sel = _n ? _n - 1 : 0;
+}
+
+void TraceScreen::draw() {
+  GFXcanvas16& c = ui.cv();
+  c.fillScreen(C_BG);
+  ui.drawStatusBar("Trace route");
+  c.setTextSize(1);
+
+  if (_picking) {
+    c.setTextColor(C_FG_DIM);
+    c.setCursor(6, STATUS_H + 6);
+    c.print("Pick a target (only contacts with a known path):");
+    if (_n == 0) {
+      c.setTextColor(C_FG_FAINT);
+      c.setCursor(40, 110);
+      c.print("No contacts with direct paths yet.");
+      c.setCursor(40, 124);
+      c.print("Message someone first so a path forms.");
+      return;
+    }
+    for (int i = (_sel / 11) * 11; i < _n && i < (_sel / 11 + 1) * 11; i++) {
+      int y = STATUS_H + 20 + (i % 11) * 17;
+      bool sel = i == _sel;
+      if (sel) c.fillRoundRect(4, y - 2, SCREEN_W - 8, 16, 4, C_BG_RAISED);
+      c.setTextColor(sel ? C_FG : C_FG_DIM);
+      c.setCursor(10, y);
+      c.print(_names[i]);
+      char h[16];
+      snprintf(h, sizeof(h), "%d hops", _hops[i]);
+      c.setCursor(SCREEN_W - 70, y);
+      c.print(h);
+    }
+    return;
+  }
+
+  // waiting / result view
+  TraceResult& tr = ui.trace;
+  c.setTextColor(C_FG);
+  c.setCursor(6, STATUS_H + 8);
+  char hd[48];
+  snprintf(hd, sizeof(hd), "Target: %s", tr.target);
+  c.print(hd);
+
+  if (!tr.valid) {
+    uint32_t waited = (millis() - tr.sent_millis) / 1000;
+    c.setTextColor(waited > 30 ? C_RED : C_YELLOW);
+    c.setCursor(6, STATUS_H + 26);
+    char w[48];
+    snprintf(w, sizeof(w), waited > 30 ? "No response (%us). r = retry" : "Waiting for response... %us", (unsigned)waited);
+    c.print(w);
+    return;
+  }
+
+  c.setTextColor(C_GREEN);
+  c.setCursor(6, STATUS_H + 26);
+  char rt[48];
+  snprintf(rt, sizeof(rt), "Round trip complete - %d hop%s", tr.hops, tr.hops == 1 ? "" : "s");
+  c.print(rt);
+
+  // per-hop SNR bars
+  int y = STATUS_H + 48;
+  for (int i = 0; i < tr.hops; i++) {
+    float snr = tr.snrs[i] / 4.0f;
+    c.setTextColor(C_FG_DIM);
+    c.setCursor(10, y);
+    char hop[40];
+    snprintf(hop, sizeof(hop), "hop %d [%0*X]", i + 1, tr.hash_size == 2 ? 4 : 2, tr.hashes[i]);
+    c.print(hop);
+
+    int bw = (int)((snr + 20) * 4);   // -20..+10 dB -> 0..120px
+    if (bw < 2) bw = 2;
+    if (bw > 120) bw = 120;
+    uint16_t bc = snr > 2 ? C_GREEN : snr > -8 ? C_YELLOW : C_RED;
+    c.fillRoundRect(120, y - 1, bw, 9, 3, bc);
+    char sv[16];
+    snprintf(sv, sizeof(sv), "%s dB", StrHelper::ftoa(snr));
+    c.setTextColor(C_FG);
+    c.setCursor(126 + bw, y);
+    c.print(sv);
+    y += 16;
+  }
+  c.setTextColor(C_FG_DIM);
+  c.setCursor(10, y + 4);
+  char fs[40];
+  snprintf(fs, sizeof(fs), "final leg to us: %s dB", StrHelper::ftoa(tr.final_snr));
+  c.print(fs);
+
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(6, SCREEN_H - 12);
+  c.print("r = trace again   n = new target");
+}
+
+bool TraceScreen::key(uint8_t k) {
+  if (k == 'n') { _picking = true; rebuild(); return true; }
+  if (k == 'r' && ui.trace.target[0]) {
+    ContactInfo* c2 = ui.mesh->lookupContactByPubKey(_prefixes[_sel], 6);
+    if (c2) ui.startTrace(*c2);
+    return true;
+  }
+  if (k == 0x0D && _picking && _n) {
+    ContactInfo* c2 = ui.mesh->lookupContactByPubKey(_prefixes[_sel], 6);
+    if (c2 && ui.startTrace(*c2)) _picking = false;
+    return true;
+  }
+  return false;
+}
+
+bool TraceScreen::nav(NavEvent e) {
+  if (!_picking) {
+    if (e == NAV_SELECT) { _picking = true; rebuild(); return true; }
+    return false;
+  }
+  switch (e) {
+    case NAV_UP:   if (_sel > 0) _sel--; return true;
+    case NAV_DOWN: if (_sel < _n - 1) _sel++; return true;
+    case NAV_SELECT: {
+      if (_n) {
+        ContactInfo* c2 = ui.mesh->lookupContactByPubKey(_prefixes[_sel], 6);
+        if (c2 && ui.startTrace(*c2)) _picking = false;
+      }
+      return true;
+    }
+    default: return false;
+  }
+}

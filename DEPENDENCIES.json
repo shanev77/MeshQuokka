@@ -1,0 +1,579 @@
+{
+  "MeshCore": {
+    "commit": "bbb58cceb852a9190b46d5f6984e8e5140e6991e",
+    "remote": "https://github.com/meshcore-dev/MeshCore.git"
+  },
+  "MeshDeck": {
+    "commit": "150f25e03e44fddc3c41b8ec08864e8073e62060",
+    "remote": "https://github.com/meshdeck-os/meshdeck.git"
+  },
+  "BLE_queue_backport": "d2096bd90e65cd5213e612811eda0bc214e1ab1c",
+  "packages": [
+    {
+      "directory": "framework-arduinoespressif32",
+      "metadata": {
+        "type": "tool",
+        "name": "framework-arduinoespressif32",
+        "version": "3.20017.241212+sha.dcc1105b",
+        "spec": {
+          "owner": "platformio",
+          "id": 8070,
+          "name": "framework-arduinoespressif32",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "tool-esptoolpy",
+      "metadata": {
+        "type": "tool",
+        "name": "tool-esptoolpy",
+        "version": "1.40501.0",
+        "spec": {
+          "owner": "platformio",
+          "id": 8161,
+          "name": "tool-esptoolpy",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "tool-scons",
+      "metadata": {
+        "type": "tool",
+        "name": "tool-scons",
+        "version": "4.41101.0",
+        "spec": {
+          "owner": "platformio",
+          "id": 8192,
+          "name": "tool-scons",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "toolchain-riscv32-esp",
+      "metadata": {
+        "type": "tool",
+        "name": "toolchain-riscv32-esp",
+        "version": "8.4.0+2021r2-patch5",
+        "spec": {
+          "owner": "espressif",
+          "id": 15395,
+          "name": "toolchain-riscv32-esp",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "toolchain-xtensa-esp32s3",
+      "metadata": {
+        "type": "tool",
+        "name": "toolchain-xtensa-esp32s3",
+        "version": "8.4.0+2021r2-patch5",
+        "spec": {
+          "owner": "espressif",
+          "id": 12550,
+          "name": "toolchain-xtensa-esp32s3",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit AHTX0",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit AHTX0",
+        "version": "2.0.6",
+        "spec": {
+          "owner": "adafruit",
+          "id": 7142,
+          "name": "Adafruit AHTX0",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit BME280 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit BME280 Library",
+        "version": "2.3.0",
+        "spec": {
+          "owner": "adafruit",
+          "id": 166,
+          "name": "Adafruit BME280 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit BME680 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit BME680 Library",
+        "version": "2.0.6",
+        "spec": {
+          "owner": "adafruit",
+          "id": 1922,
+          "name": "Adafruit BME680 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit BMP085 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit BMP085 Library",
+        "version": "1.2.4",
+        "spec": {
+          "owner": "adafruit",
+          "id": 525,
+          "name": "Adafruit BMP085 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit BMP280 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit BMP280 Library",
+        "version": "2.6.8",
+        "spec": {
+          "owner": "adafruit",
+          "id": 528,
+          "name": "Adafruit BMP280 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit BusIO",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit BusIO",
+        "version": "1.17.4",
+        "spec": {
+          "owner": "adafruit",
+          "id": 6214,
+          "name": "Adafruit BusIO",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit GFX Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit GFX Library",
+        "version": "1.13.0",
+        "spec": {
+          "owner": "adafruit",
+          "id": 13,
+          "name": "Adafruit GFX Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit INA219",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit INA219",
+        "version": "1.2.3",
+        "spec": {
+          "owner": "adafruit",
+          "id": 160,
+          "name": "Adafruit INA219",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit INA260 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit INA260 Library",
+        "version": "1.5.4",
+        "spec": {
+          "owner": "adafruit",
+          "id": 6239,
+          "name": "Adafruit INA260 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit INA3221 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit INA3221 Library",
+        "version": "1.0.1",
+        "spec": {
+          "owner": "adafruit",
+          "id": 17880,
+          "name": "Adafruit INA3221 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit MLX90614 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit MLX90614 Library",
+        "version": "2.1.7",
+        "spec": {
+          "owner": "adafruit",
+          "id": 782,
+          "name": "Adafruit MLX90614 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit NeoPixel",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit NeoPixel",
+        "version": "1.15.5",
+        "spec": {
+          "owner": "adafruit",
+          "id": 28,
+          "name": "Adafruit NeoPixel",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit seesaw Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit seesaw Library",
+        "version": "1.7.9",
+        "spec": {
+          "owner": "adafruit",
+          "id": 1890,
+          "name": "Adafruit seesaw Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit SH110X",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit SH110X",
+        "version": "2.1.15",
+        "spec": {
+          "owner": "adafruit",
+          "id": 7444,
+          "name": "Adafruit SH110X",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit SHTC3 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit SHTC3 Library",
+        "version": "1.0.2",
+        "spec": {
+          "owner": "adafruit",
+          "id": 7407,
+          "name": "Adafruit SHTC3 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit SSD1306",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit SSD1306",
+        "version": "2.5.17",
+        "spec": {
+          "owner": "adafruit",
+          "id": 135,
+          "name": "Adafruit SSD1306",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit ST7735 and ST7789 Library",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit ST7735 and ST7789 Library",
+        "version": "1.12.0",
+        "spec": {
+          "owner": "adafruit",
+          "id": 12,
+          "name": "Adafruit ST7735 and ST7789 Library",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit Unified Sensor",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit Unified Sensor",
+        "version": "1.1.15",
+        "spec": {
+          "owner": "adafruit",
+          "id": 31,
+          "name": "Adafruit Unified Sensor",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Adafruit_VL53L0X",
+      "metadata": {
+        "type": "library",
+        "name": "Adafruit_VL53L0X",
+        "version": "1.2.5",
+        "spec": {
+          "owner": "adafruit",
+          "id": 1494,
+          "name": "Adafruit_VL53L0X",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "ArduinoJson",
+      "metadata": {
+        "type": "library",
+        "name": "ArduinoJson",
+        "version": "7.4.3",
+        "spec": {
+          "owner": "bblanchon",
+          "id": 64,
+          "name": "ArduinoJson",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Arduino_LPS22HB",
+      "metadata": {
+        "type": "library",
+        "name": "Arduino_LPS22HB",
+        "version": "1.0.3",
+        "spec": {
+          "owner": "arduino-libraries",
+          "id": 6591,
+          "name": "Arduino_LPS22HB",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "base64",
+      "metadata": {
+        "type": "library",
+        "name": "base64",
+        "version": "1.4.0",
+        "spec": {
+          "owner": "densaugeo",
+          "id": 758,
+          "name": "base64",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "CayenneLPP",
+      "metadata": {
+        "type": "library",
+        "name": "CayenneLPP",
+        "version": "1.6.1",
+        "spec": {
+          "owner": "electroniccats",
+          "id": 1767,
+          "name": "CayenneLPP",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Crypto",
+      "metadata": {
+        "type": "library",
+        "name": "Crypto",
+        "version": "0.4.0",
+        "spec": {
+          "owner": "rweather",
+          "id": 1168,
+          "name": "Crypto",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "INA226",
+      "metadata": {
+        "type": "library",
+        "name": "INA226",
+        "version": "0.6.6",
+        "spec": {
+          "owner": "robtillaart",
+          "id": 12232,
+          "name": "INA226",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Melopero RV3028",
+      "metadata": {
+        "type": "library",
+        "name": "Melopero RV3028",
+        "version": "1.2.0",
+        "spec": {
+          "owner": "melopero",
+          "id": 11317,
+          "name": "Melopero RV3028",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "MicroNMEA",
+      "metadata": {
+        "type": "library",
+        "name": "MicroNMEA",
+        "version": "2.0.6",
+        "spec": {
+          "owner": "stevemarple",
+          "id": 625,
+          "name": "MicroNMEA",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "RadioLib",
+      "metadata": {
+        "type": "library",
+        "name": "RadioLib",
+        "version": "7.8.1",
+        "spec": {
+          "owner": "jgromes",
+          "id": 5795,
+          "name": "RadioLib",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "RTClib",
+      "metadata": {
+        "type": "library",
+        "name": "RTClib",
+        "version": "2.1.4",
+        "spec": {
+          "owner": "adafruit",
+          "id": 83,
+          "name": "RTClib",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Sensirion Core",
+      "metadata": {
+        "type": "library",
+        "name": "Sensirion Core",
+        "version": "0.7.3",
+        "spec": {
+          "owner": "sensirion",
+          "id": 11744,
+          "name": "Sensirion Core",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Sensirion I2C SHT4x",
+      "metadata": {
+        "type": "library",
+        "name": "Sensirion I2C SHT4x",
+        "version": "1.1.2",
+        "spec": {
+          "owner": "sensirion",
+          "id": 12994,
+          "name": "Sensirion I2C SHT4x",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    },
+    {
+      "directory": "Unity",
+      "metadata": {
+        "type": "library",
+        "name": "Unity",
+        "version": "2.6.1",
+        "spec": {
+          "owner": "throwtheswitch",
+          "id": 13894,
+          "name": "Unity",
+          "requirements": null,
+          "uri": null
+        }
+      }
+    }
+  ],
+  "reference_file_hashes": {
+    "toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-g++.exe": "563b3ddf3e21356b8b2d32aa4ae58f1a1e311dd1cba9e2bc963d56bf73aa1c6d",
+    "tool-esptoolpy/esptool.py": "a0fd5aa56a85907d137f945cbd777f1d581677cb846319fb1234af021e676753",
+    "framework-arduinoespressif32/package.json": "f35415c75f6f43755df92bbbf7ef10c9e65c2edb2569d512636a0477be64d5bf"
+  },
+  "PNGdec": {
+    "version": "1.1.7",
+    "commit": "64f9f3bc11cc1acb49f5bce823baae6ece910ba6",
+    "remote": "https://github.com/bitbank2/PNGdec",
+    "license": "Apache-2.0"
+  }
+}

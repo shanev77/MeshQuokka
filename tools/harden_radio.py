@@ -1,0 +1,18 @@
+from pathlib import Path
+r=Path('MeshCore-Enhanced/vendor/meshdeck/firmware')
+def edit(p,a,b):
+ p=r/p;s=p.read_text(encoding='utf8');assert a in s,(p,a[:50]);p.write_text(s.replace(a,b),encoding='utf8')
+edit('MyMesh.cpp','#include "MyMesh.h"','#include "MyMesh.h"\n#include "RadioPolicy.h"\n#include <SPIFFS.h>')
+edit('MyMesh.cpp','void MyMesh::applyRadioPrefs() {','void MyMesh::applyRadioPrefs() {\n  if (!enhanced::validRadio(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr, _prefs.tx_power_dbm)) {\n    _prefs.freq=LORA_FREQ; _prefs.bw=LORA_BW; _prefs.sf=LORA_SF; _prefs.cr=LORA_CR; _prefs.tx_power_dbm=LORA_TX_POWER;\n  }')
+edit('MyMesh.cpp','} else if (cmd_frame[0] == CMD_SET_RADIO_PARAMS) {','} else if (cmd_frame[0] == CMD_SET_RADIO_PARAMS) {\n    if (len < 11) { writeErrFrame(ERR_CODE_ILLEGAL_ARG); return; }')
+edit('MyMesh.cpp','freq >= 150000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&\n        bw <= 500000','enhanced::validRadio(freq / 1000.f, bw / 1000.f, sf, cr, _prefs.tx_power_dbm)')
+edit('MyMesh.cpp','    int8_t power = (int8_t)cmd_frame[1];','    if (len < 2) { writeErrFrame(ERR_CODE_ILLEGAL_ARG); return; }\n    int8_t power = (int8_t)cmd_frame[1];')
+edit('ui/UITask.cpp','#include "../MyMesh.h"','#include "../MyMesh.h"\n#include "../RadioPolicy.h"')
+edit('ui/UITask.cpp','  if (!prefs || !mesh) return;\n  prefs->freq = freq;','  if (!prefs || !mesh) return;\n  if (!enhanced::validRadio(freq,bw,sf,cr,prefs->tx_power_dbm)) { toast("Outside AU 915 radio profile",C_RED); return; }\n  prefs->freq = freq;')
+edit('ui/SettingsScreen.cpp','#include "../MyMesh.h"','#include "../MyMesh.h"\n#include "../RadioPolicy.h"')
+edit('ui/SettingsScreen.cpp','if (f > 100 && f < 1000)','if (enhanced::validRadio(f,p->bw,p->sf,p->cr,p->tx_power_dbm))')
+edit('ui/SettingsScreen.cpp','      ui.set.man_lat = (int32_t)(atof(_edit) * 1000000.0);','      double value=atof(_edit);\n      if (!enhanced::validPosition(value,0)) { ui.toast("Invalid latitude",C_RED); break; }\n      ui.set.man_lat = (int32_t)(value * 1000000.0);')
+edit('ui/SettingsScreen.cpp','      ui.set.man_lon = (int32_t)(atof(_edit) * 1000000.0);','      double value=atof(_edit);\n      if (!enhanced::validPosition(0,value)) { ui.toast("Invalid longitude",C_RED); break; }\n      ui.set.man_lon = (int32_t)(value * 1000000.0);')
+edit('ui/TerminalScreen.cpp','  ui.termLog(C_TERM_IN, "> %s", line);','  // Never mirror command arguments (may contain passwords or private text).\n  ui.termLog(C_TERM_IN, "> command");')
+edit('ui/UITask.cpp','  hw.begin(false);','  if (!hw.begin(false)) { Serial.println("Framebuffer allocation failed"); while (true) delay(1000); }')
+print('Applied AU validation and input/privacy checks')

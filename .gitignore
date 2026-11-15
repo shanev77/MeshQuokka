@@ -1,0 +1,13 @@
+private-backups/
+firmware/.pio/
+build/
+*.log
+__pycache__/
+*.o
+
+release/
+.venv/
+.platformio/
+**/.pio/
+*.pyc
+*.elf

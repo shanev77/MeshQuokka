@@ -1,0 +1,551 @@
+#include "AllScreens.h"
+#include "../MyMesh.h"
+#include "../RadioPolicy.h"
+#include <helpers/TxtDataHelpers.h>
+#include <string.h>
+
+enum SetItem : int {
+  SI_NAME = 0, SI_FREQ, SI_SF, SI_BW, SI_CR, SI_PATHMODE, SI_POWER, SI_PRESET,
+  SI_BRIGHT, SI_TIMEOUT, SI_TZ, SI_ALWAYS, SI_SOUND, SI_VOL, SI_FLIP, SI_TOUCHMAP, SI_TBSPEED, SI_ADVINT, SI_SOSEN,
+  SI_GPS, SI_WIFISSID, SI_WIFIPASS, SI_WIFI, SI_LOCPOL, SI_MANLAT, SI_MANLON, SI_AUTOADD,
+  SI_ROOMTRIES, SI_RADIORESTORE,
+  SI_ADVERT, SI_ADVERTF, SI_CLEARMSG, SI_CLEARCONTACTS, SI_DLMAP, SI_SDPREP, SI_SDMAPS, SI_ARCHIVE, SI_SDUPDATE, SI_ABOUT,
+  SI_COUNT
+};
+
+static const char* LABELS[SI_COUNT] = {
+  "Node name", "Frequency (MHz)", "Spreading factor", "Bandwidth (kHz)", "Coding rate", "Path mode (bytes/hop)", "TX power (dBm)", "Radio preset setup",
+  "Brightness", "Screen timeout (s)", "Time zone (UTC+)", "Always-on clock", "Sounds", "Volume", "Flip display", "Touch mapping", "Trackball speed", "Auto-advert (min)", "SOS beacon",
+  "GPS module", "WiFi network (SSID)", "WiFi password", "WiFi connect", "Share location in advert", "Manual latitude", "Manual longitude", "Auto-add contacts",
+  "Room auto-login tries", "Restore previous radio",
+  "Send advert (0-hop)", "Send advert (flood)", "Clear message history", "Delete all contacts", "Download maps (WiFi)", "Prepare SD (maps folder)", "Reload SD map packs", "Archive messages to SD", "Update firmware from SD", "About"
+};
+
+#define S_ROW_H 18
+#define S_FILT_H 18
+#define S_TOP (STATUS_H + 1 + S_FILT_H)
+#define S_VIS ((SCREEN_H - S_TOP - 14) / S_ROW_H)
+
+// case-insensitive substring match (same idea as Contacts)
+static bool labelMatches(const char* name, const char* filt) {
+  if (!filt || !filt[0]) return true;
+  if (!name) return false;
+  for (const char* p = name; *p; p++) {
+    const char* a = p;
+    const char* b = filt;
+    while (*a && *b) {
+      char ca = *a, cb = *b;
+      if (ca >= 'A' && ca <= 'Z') ca = (char)(ca - 'A' + 'a');
+      if (cb >= 'A' && cb <= 'Z') cb = (char)(cb - 'A' + 'a');
+      if (ca != cb) break;
+      a++; b++;
+    }
+    if (!*b) return true;
+  }
+  return false;
+}
+
+void SettingsScreen::rebuildFilter() {
+  _fn = 0;
+  if (_flen < 0) _flen = 0;
+  if (_flen >= (int)sizeof(_filter)) _flen = (int)sizeof(_filter) - 1;
+  _filter[_flen] = 0;
+  const char* filt = (_flen > 0) ? _filter : "";
+  for (int i = 0; i < SI_COUNT && _fn < FMAP_MAX; i++) {
+    if (labelMatches(LABELS[i], filt))
+      _fmap[_fn++] = i;
+  }
+  if (_sel >= _fn) _sel = _fn ? _fn - 1 : 0;
+  if (_sel < 0) _sel = 0;
+  if (_top > _sel) _top = _sel;
+  if (_top < 0) _top = 0;
+}
+
+int SettingsScreen::realItem() const {
+  if (_sel < 0 || _sel >= _fn) return -1;
+  return _fmap[_sel];
+}
+
+void SettingsScreen::enter() {
+  _editing = false;
+  if (_flen <= 0) {
+    _flen = 0;
+    memset(_filter, 0, sizeof(_filter));
+  } else {
+    _filter[_flen] = 0;
+  }
+  _sel = 0;
+  _top = 0;
+  rebuildFilter();
+}
+
+static bool isTextItem(int i) {
+  return i == SI_NAME || i == SI_FREQ || i == SI_MANLAT || i == SI_MANLON ||
+         i == SI_WIFISSID || i == SI_WIFIPASS;
+}
+
+void SettingsScreen::draw() {
+  GFXcanvas16& c = ui.cv();
+  c.fillScreen(C_BG);
+  rebuildFilter();
+
+  char title[36];
+  if (_flen)
+    snprintf(title, sizeof(title), "Settings (%d match)", _fn);
+  else
+    snprintf(title, sizeof(title), "Settings");
+  ui.drawStatusBar(title);
+  c.setTextSize(1);
+
+  // ---- filter field (like Contacts) ----
+  c.fillRect(0, STATUS_H + 1, SCREEN_W, S_FILT_H, C_BG_ALT);
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(6, STATUS_H + 6);
+  c.print("Filter:");
+  c.setTextColor(C_FG);
+  c.setCursor(50, STATUS_H + 6);
+  if (_flen == 0) {
+    c.setTextColor(C_FG_FAINT);
+    c.print(_editing ? "" : "(type to search)");
+  } else {
+    c.print(_filter);
+    int cx = 50 + _flen * 6;
+    c.fillRect(cx + 1, STATUS_H + 5, 2, 10, C_ACCENT);
+  }
+  c.drawFastHLine(0, S_TOP - 1, SCREEN_W, C_FG_FAINT);
+
+  if (_fn == 0) {
+    c.setTextColor(C_FG_FAINT);
+    c.setCursor(40, 120);
+    c.print("No matches for filter");
+    return;
+  }
+
+  if (_sel < _top) _top = _sel;
+  if (_sel >= _top + S_VIS) _top = _sel - S_VIS + 1;
+
+  NodePrefs* p = ui.prefs;
+  for (int fi = _top; fi < _fn && fi < _top + S_VIS; fi++) {
+    int i = _fmap[fi];
+    int y = S_TOP + (fi - _top) * S_ROW_H;
+    bool sel = fi == _sel;
+    if (sel) c.fillRoundRect(2, y - 1, SCREEN_W - 4, S_ROW_H - 1, 4, C_BG_RAISED);
+    c.setTextColor(sel ? C_FG : C_FG_DIM);
+    c.setCursor(8, y + 4);
+    c.print(LABELS[i]);
+
+    char v[40] = "";
+    switch (i) {
+      case SI_NAME:    ellipsize(v, 18, p->node_name); break;
+      case SI_FREQ:    snprintf(v, sizeof(v), "%s", StrHelper::ftoa3(p->freq)); break;
+      case SI_SF:      snprintf(v, sizeof(v), "%d", p->sf); break;
+      case SI_BW:      snprintf(v, sizeof(v), "%s", StrHelper::ftoa(p->bw)); break;
+      case SI_CR:      snprintf(v, sizeof(v), "%d", p->cr); break;
+      case SI_PATHMODE: snprintf(v, sizeof(v), "%d", p->path_hash_mode + 1); break;
+      case SI_POWER:   snprintf(v, sizeof(v), "%d", p->tx_power_dbm); break;
+      case SI_BRIGHT:  snprintf(v, sizeof(v), "%d%%", ui.set.brightness * 100 / 255); break;
+      case SI_TIMEOUT: if (ui.set.timeout_s) snprintf(v, sizeof(v), "%d", ui.set.timeout_s); else strcpy(v, "never"); break;
+      case SI_TZ:      snprintf(v, sizeof(v), "%+d", ui.set.tz_offset); break;
+      case SI_SOSEN:   strcpy(v, ui.set.sos_disabled ? "off" : "on"); break;
+      case SI_CLEARMSG: strcpy(v, ">"); break;
+      case SI_CLEARCONTACTS: strcpy(v, ">"); break;
+      case SI_ALWAYS:  strcpy(v, ui.set.always_on ? "on" : "off"); break;
+      case SI_SOUND:   strcpy(v, ui.set.sounds ? "on" : "off"); break;
+      case SI_VOL:     snprintf(v, sizeof(v), "%d/10", ui.set.volume); break;
+      case SI_FLIP:    strcpy(v, ui.set.flip ? "yes" : "no"); break;
+      case SI_TOUCHMAP: snprintf(v, sizeof(v), "%c", 'A' + ui.set.touch_map); break;
+      case SI_TBSPEED:  snprintf(v, sizeof(v), "%d/5", ui.set.tb_speed); break;
+      case SI_ADVINT:   if (ui.set.adv_interval_min) snprintf(v, sizeof(v), "%d", ui.set.adv_interval_min); else strcpy(v, "off"); break;
+      case SI_PRESET:   strcpy(v, ">"); break;
+      case SI_GPS:     strcpy(v, p->gps_enabled ? "on" : "off"); break;
+      case SI_WIFISSID: ellipsize(v, 18, ui.wifiSsid()[0] ? ui.wifiSsid() : "(not set)"); break;
+      case SI_WIFIPASS: strcpy(v, ui.wifiPass()[0] ? "****" : "(none)"); break;
+      case SI_WIFI: { int ws = ui.wifiState(); strcpy(v, ws == 2 ? "connected" : ws == 1 ? "connecting" : "off"); break; }
+      case SI_DLMAP:   strcpy(v, ">"); break;
+      case SI_SDPREP:  strcpy(v, ">"); break;
+      case SI_LOCPOL:  strcpy(v, p->advert_loc_policy ? "yes" : "no"); break;
+      case SI_MANLAT:  snprintf(v, sizeof(v), "%.5f", ui.set.man_lat / 1000000.0); break;
+      case SI_MANLON:  snprintf(v, sizeof(v), "%.5f", ui.set.man_lon / 1000000.0); break;
+      case SI_AUTOADD: strcpy(v, (p->manual_add_contacts & 1) ? "manual" : "auto"); break;
+      case SI_ROOMTRIES: snprintf(v, sizeof(v), "%d", ui.autoLoginMaxTries()); break;
+      case SI_SDMAPS:  snprintf(v, sizeof(v), "%d loaded  >", ui.sdmaps.count()); break;
+      case SI_ARCHIVE: snprintf(v,sizeof(v),"%s",ui.archive.busy()?"writing...":">");break;
+      case SI_ADVERT: case SI_ADVERTF: case SI_SDUPDATE: strcpy(v, ">"); break;
+      case SI_ABOUT:   snprintf(v, sizeof(v), "v%s", MESHDECK_VERSION); break;
+    }
+
+    if (_editing && fi == _sel) {
+      _edit[_elen] = 0;
+      c.fillRect(SCREEN_W - 130, y, 126, S_ROW_H - 2, C_BG);
+      c.drawRect(SCREEN_W - 130, y, 126, S_ROW_H - 2, C_ACCENT);
+      c.setTextColor(C_YELLOW);
+      c.setCursor(SCREEN_W - 124, y + 4);
+      if (inputSecret()) { for (int j=0; j<_elen && j<19; ++j) c.print("*"); }
+      else c.print(_edit);
+      c.fillRect(SCREEN_W - 124 + _elen * 6 + 1, y + 3, 2, 10, C_ACCENT);
+      if (ui.symShift()) {          // number/symbol layer active
+        c.setTextColor(C_CYAN);
+        c.setCursor(SCREEN_W - 26, y + 4);
+        c.print("123");
+      }
+    } else {
+      c.setTextColor(sel ? C_ACCENT : C_FG_FAINT);
+      c.setCursor(SCREEN_W - 8 - strlen(v) * 6, y + 4);
+      c.print(v);
+    }
+  }
+
+  // hint bar
+  c.setTextColor(C_FG_FAINT);
+  c.setCursor(6, SCREEN_H - 10);
+  int item = realItem();
+  if (_editing) {
+    c.setTextColor(ui.symShift() ? C_CYAN : C_FG_FAINT);
+    c.print(ui.symShift() ? "123 mode (ball=letters)  enter=apply"
+                          : "roll ball for 123/symbols  enter=apply");
+  }
+  else if (item == SI_TBSPEED) {
+    // live input test: roll the ball, click it, press keys - watch this update
+    bool btn, touch; int px, py; uint8_t key;
+    ui.hw.inputDebug(btn, px, py, key, touch);
+    c.setTextColor(btn ? C_GREEN : C_FG_FAINT);
+    char dbg[64];
+    snprintf(dbg, sizeof(dbg), "click:%s ball:%d,%d key:%d(%c) kb:%s touch:%s",
+             btn ? "DOWN" : "up", px, py, key, (key >= 32 && key < 127) ? key : '.',
+             ui.hw.hasKeyboard() ? "Y" : "N", touch ? "Y" : "N");
+    c.print(dbg);
+  }
+  else if (item >= 0 && isTextItem(item)) c.print("type=filter  enter=edit");
+  else c.print("type=filter  L/R=change  enter=action");
+}
+
+void SettingsScreen::adjust(int dir) {
+  int item = realItem();
+  if (item < 0) return;
+  NodePrefs* p = ui.prefs;
+  bool radio = false;
+  if(item==SI_SF || item==SI_CR || item==SI_POWER || item==SI_BW) {
+    if(!ui.confirmRadioChange(item*3+dir))return;
+    ui.backupRadio();
+  }
+  switch (item) {
+    case SI_SF:    p->sf = constrain(p->sf + dir, 7, 12); radio = true; break;
+    case SI_CR:    p->cr = constrain(p->cr + dir, 5, 8); radio = true; break;
+    case SI_PATHMODE: p->path_hash_mode = constrain(p->path_hash_mode + dir, 0, 2); break;
+    case SI_POWER: p->tx_power_dbm = constrain(p->tx_power_dbm + dir, 1, 22); radio = true; break;
+    case SI_BW: {
+      static const float BWS[] = { 62.5f, 125.0f, 250.0f, 500.0f };
+      int bi = 0;
+      for (int i = 0; i < 4; i++) if (fabsf(p->bw - BWS[i]) < 0.1f) bi = i;
+      bi = constrain(bi + dir, 0, 3);
+      p->bw = BWS[bi];
+      radio = true;
+      break;
+    }
+    case SI_BRIGHT: {
+      int b = ui.set.brightness + dir * 25;
+      ui.set.brightness = constrain(b, 30, 255);
+      ui.hw.setBacklight(ui.set.brightness);
+      break;
+    }
+    case SI_TIMEOUT: {
+      static const uint16_t TOS[] = { 0, 15, 30, 60, 120, 300 };
+      int ti = 0;
+      for (int i = 0; i < 6; i++) if (ui.set.timeout_s == TOS[i]) ti = i;
+      ti = constrain(ti + dir, 0, 5);
+      ui.set.timeout_s = TOS[ti];
+      break;
+    }
+    case SI_TZ:     ui.set.tz_offset = constrain(ui.set.tz_offset + dir, -12, 14); break;
+    case SI_SOSEN:  ui.set.sos_disabled = !ui.set.sos_disabled; break;
+    case SI_ALWAYS: ui.set.always_on = !ui.set.always_on; break;
+    case SI_SOUND:  ui.set.sounds = !ui.set.sounds; ui.hw.setSound(ui.set.sounds, ui.set.volume); break;
+    case SI_VOL:
+      ui.set.volume = constrain(ui.set.volume + dir, 0, 10);
+      ui.hw.setSound(ui.set.sounds, ui.set.volume);
+      if (dir > 0) ui.hw.beep(1319, 50);
+      break;
+    case SI_FLIP:
+      ui.set.flip = !ui.set.flip;
+      ui.hw.setRotationFlip(ui.set.flip);
+      break;
+    case SI_TOUCHMAP:
+      ui.set.touch_map = (ui.set.touch_map + (dir > 0 ? 1 : 3)) & 3;
+      ui.hw.setTouchMap(ui.set.touch_map);
+      ui.toast("Tap the screen to test");
+      break;
+    case SI_TBSPEED:
+      ui.set.tb_speed = constrain(ui.set.tb_speed + dir, 1, 5);
+      ui.hw.setTrackballStep(6 - ui.set.tb_speed);
+      break;
+    case SI_ADVINT: {
+      static const uint8_t IVS[] = { 0, 5, 15, 30, 60 };
+      int ii = 0;
+      for (int i = 0; i < 5; i++) if (ui.set.adv_interval_min == IVS[i]) ii = i;
+      ii = constrain(ii + dir, 0, 4);
+      ui.set.adv_interval_min = IVS[ii];
+      break;
+    }
+    case SI_GPS:
+      p->gps_enabled = p->gps_enabled ? 0 : 1;
+      if (p->gps_enabled && p->gps_interval == 0) p->gps_interval = 5;
+      ui.mesh->applyGpsPrefs();
+      ui.mesh->savePrefs();
+      ui.toast(p->gps_enabled ? "GPS on - needs a connected module" : "GPS off");
+      break;
+    case SI_LOCPOL: p->advert_loc_policy = p->advert_loc_policy ? 0 : 1; break;
+    case SI_AUTOADD: p->manual_add_contacts ^= 1; break;
+    case SI_ROOMTRIES: {
+      int t = (int)ui.set.room_login_tries + dir;
+      if (t < 1) t = 1;
+      if (t > (int)UITask::AUTO_LOGIN_TRIES_MAX) t = UITask::AUTO_LOGIN_TRIES_MAX;
+      ui.set.room_login_tries = (uint8_t)t;
+      break;
+    }
+    default: return;
+  }
+  if (radio) ui.mesh->applyRadioPrefs();
+  ui.mesh->savePrefs();
+  ui.saveSettings();
+}
+
+void SettingsScreen::select() {
+  int item = realItem();
+  if(item==SI_RADIORESTORE){ui.restoreRadio();return;}
+  if (item < 0) return;
+  // Temporarily use item as selection for the switch body
+  NodePrefs* p = ui.prefs;
+  switch (item) {
+    case SI_NAME:
+      _editing = true;
+      StrHelper::strncpy(_edit, p->node_name, sizeof(_edit));
+      _elen = strlen(_edit);
+      break;
+    case SI_FREQ:
+      _editing = true;
+      snprintf(_edit, sizeof(_edit), "%s", StrHelper::ftoa3(p->freq));
+      _elen = strlen(_edit);
+      break;
+    case SI_MANLAT:
+      _editing = true;
+      snprintf(_edit, sizeof(_edit), "%.5f", ui.set.man_lat / 1000000.0);
+      _elen = strlen(_edit);
+      break;
+    case SI_MANLON:
+      _editing = true;
+      snprintf(_edit, sizeof(_edit), "%.5f", ui.set.man_lon / 1000000.0);
+      _elen = strlen(_edit);
+      break;
+    case SI_PRESET:
+      ui.go(SCR_ONBOARD);
+      break;
+    case SI_CLEARMSG:
+      ui.store.clearAll();
+      ui.toast("Message history cleared", C_YELLOW);
+      break;
+    case SI_CLEARCONTACTS: {
+      if (!ui.mesh) break;
+      int n = ui.mesh->getNumContacts();
+      int removed = 0;
+      // Walk backwards so indices stay valid while deleting
+      for (int i = n - 1; i >= 0; i--) {
+        ContactInfo ct;
+        if (ui.mesh->getContactByIdx(i, ct)) {
+          if (ui.mesh->removeContact(ct)) removed++;
+        }
+      }
+      ui.mesh->saveContacts();
+      char buf[40];
+      snprintf(buf, sizeof(buf), "Deleted %d contacts", removed);
+      ui.toast(buf, C_YELLOW);
+      break;
+    }
+    case SI_WIFISSID:
+      _editing = true;
+      StrHelper::strncpy(_edit, ui.wifiSsid(), sizeof(_edit));
+      _elen = strlen(_edit);
+      break;
+    case SI_WIFIPASS:
+      _editing = true;
+      StrHelper::strncpy(_edit, ui.wifiPass(), sizeof(_edit));
+      _elen = strlen(_edit);
+      break;
+    case SI_WIFI:
+      if (ui.wifiState() == 0) ui.wifiConnect(); else ui.wifiOff();
+      break;
+    case SI_DLMAP:
+      ui.go(SCR_MAPDL);      // opens the region picker (fetches list over WiFi)
+      break;
+    case SI_SDPREP: {
+      const char* err = ui.prepareSD();
+      ui.toast(err ? err : "SD ready (/meshdeck-maps)", err ? C_RED : C_GREEN);
+      break;
+    }
+    case SI_ADVERT:
+      ui.mesh->advert();
+      ui.toast("Zero-hop advert sent");
+      break;
+    case SI_ADVERTF:
+      ui.mesh->advertFlood();
+      ui.toast("Flood advert sent");
+      break;
+    case SI_SDMAPS:
+      ui.reloadSDMaps();
+      break;
+    case SI_SDUPDATE: {
+      if(ui.archive.busy() || ui.transfer.busy()){ui.toast("Wait for SD writes to finish",C_YELLOW);break;}
+      ui.toast("Reading SD card...", C_YELLOW);
+      const char* err = ui.hw.updateFromSD();   // only returns on failure
+      ui.toast(err, C_RED);
+      break;
+    }
+    case SI_ABOUT:
+      ui.go(SCR_ABOUT);
+      ui.termLog(C_TERM_SYS, "MeshQuokka v%s | MeshCore %s | built " FIRMWARE_BUILD_DATE, MESHDECK_VERSION, FIRMWARE_VERSION);
+      ui.termLog(C_TERM_SYS, "License: MIT (MeshDeck) - see LICENSE / THIRD_PARTY.md");
+#ifdef MESHDECK_BETA
+      ui.termLog(C_TERM_SYS,
+                 "Voice: Codec2 (LGPL-2.1) - firmware/codec2/COPYING");
+#endif
+      ui.toast("MeshQuokka v" MESHDECK_VERSION " - see terminal");
+      break;
+    case SI_ARCHIVE: {
+      const char* error=ui.archive.start(ui.hw,ui.store,ui.epochNow());
+      ui.toast(error?error:"Archiving messages to SD...",error?C_RED:C_CYAN);
+      break;
+    }
+    default:
+      adjust(1);
+      break;
+  }
+}
+
+void SettingsScreen::applyEdit() {
+  _edit[_elen] = 0;
+  int item = realItem();
+  NodePrefs* p = ui.prefs;
+  switch (item) {
+    case SI_NAME:
+      if (_elen > 0) {
+        StrHelper::strncpy(p->node_name, _edit, sizeof(p->node_name));
+        ui.mesh->savePrefs();
+        ui.toast("Name saved - advert to announce");
+      }
+      break;
+    case SI_FREQ: {
+      float f = atof(_edit);
+      if (enhanced::validRadio(f,p->bw,p->sf,p->cr,p->tx_power_dbm)) {
+        if(!ui.confirmRadioChange(SI_FREQ)) return;
+        ui.backupRadio();
+        p->freq = f;
+        ui.mesh->applyRadioPrefs();
+        ui.mesh->savePrefs();
+        ui.toast("Frequency updated");
+      } else ui.toast("Invalid frequency", C_RED);
+      break;
+    }
+    case SI_MANLAT: {
+      double value=atof(_edit);
+      if (!enhanced::validPosition(value,0)) { ui.toast("Invalid latitude",C_RED); break; }
+      ui.set.man_lat = (int32_t)(value * 1000000.0);
+      ui.saveSettings();
+      ui.applySettings();
+      if (ui.sensors) { ui.sensors->node_lat = ui.set.man_lat / 1000000.0; }
+      break;
+    }
+    case SI_MANLON: {
+      double value=atof(_edit);
+      if (!enhanced::validPosition(0,value)) { ui.toast("Invalid longitude",C_RED); break; }
+      ui.set.man_lon = (int32_t)(value * 1000000.0);
+      ui.saveSettings();
+      ui.applySettings();
+      if (ui.sensors) { ui.sensors->node_lon = ui.set.man_lon / 1000000.0; }
+      break;
+    }
+    case SI_WIFISSID:
+      StrHelper::strncpy(ui.wifiSsid(), _edit, 33);
+      ui.saveWifi();
+      ui.toast("WiFi network saved");
+      break;
+    case SI_WIFIPASS:
+      StrHelper::strncpy(ui.wifiPass(), _edit, 65);
+      ui.saveWifi();
+      ui.toast("WiFi password saved");
+      break;
+  }
+  _editing = false;
+}
+
+bool SettingsScreen::key(uint8_t k) {
+  if (_editing) {
+    if (k == 0x0D) { applyEdit(); return true; }
+    if (k == 0x08 || k == 0x7F) {   // backspace OR delete (T-Deck sends 0x7F)
+      if (_elen > 0) _elen--;
+      else _editing = false;
+      return true;
+    }
+    if (k >= 32 && k < 127 && _elen < (int)sizeof(_edit) - 2) {
+      _edit[_elen++] = k;
+      return true;
+    }
+    return true;
+  }
+  if (k == 0x0D) { select(); return true; }
+  // Backspace: trim filter, or leave screen if empty
+  if (k == 0x08 || k == 0x7F) {
+    if (_flen > 0) {
+      _filter[--_flen] = 0;
+      rebuildFilter();
+      return true;
+    }
+    return false;  // empty filter -> back
+  }
+  if (k == 0x1B) {  // Esc clears filter
+    if (_flen > 0) {
+      _flen = 0;
+      _filter[0] = 0;
+      rebuildFilter();
+      return true;
+    }
+    return false;
+  }
+  // Printable -> filter text (same as Contacts)
+  if (k >= 32 && k < 127 && _flen < (int)sizeof(_filter) - 1) {
+    _filter[_flen++] = (char)k;
+    _filter[_flen] = 0;
+    rebuildFilter();
+    return true;
+  }
+  return false;
+}
+
+bool SettingsScreen::nav(NavEvent e) {
+  if (_editing) {
+    if (e == NAV_SELECT) { applyEdit(); return true; }
+    if (e == NAV_BACK) { _editing = false; return true; }
+    // roll the trackball up/down to switch the number/symbol layer (guaranteed
+    // to work even if the keyboard's Alt key doesn't): up = 123, down = letters
+    if (e == NAV_UP   && !ui.symShift()) ui.toggleSym();
+    if (e == NAV_DOWN &&  ui.symShift()) ui.toggleSym();
+    return true;
+  }
+  rebuildFilter();
+  switch (e) {
+    case NAV_UP:    if (_sel > 0) _sel--; return true;
+    case NAV_DOWN:  if (_sel < _fn - 1) _sel++; return true;
+    case NAV_LEFT:  adjust(-1); return true;
+    case NAV_RIGHT: adjust(1); return true;
+    case NAV_SELECT: select(); return true;
+    case NAV_BACK:
+      if (_flen > 0) {
+        _flen = 0;
+        _filter[0] = 0;
+        rebuildFilter();
+        return true;
+      }
+      return false;
+    default: return false;
+  }
+}
+
+bool SettingsScreen::inputSecret() const { return _editing && realItem() == SI_WIFIPASS; }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="PacketDeck — Data Packet Radio on the MESHCORE network">
+<rect width="640" height="360" rx="24" fill="#0a0c10"/>
+<g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+<rect x="264" y="46" width="112" height="68" rx="14" stroke="#409cff"/>
+<path d="M240 58 L226 80 L240 102 M218 47 L198 80 L218 113 M196 36 L170 80 L196 124" stroke="#50d2dc"/>
+<path d="M400 58 L414 80 L400 102 M422 47 L442 80 L422 113 M444 36 L470 80 L444 124" stroke="#46c878"/>
+</g><rect x="282" y="70" width="16" height="20" rx="2" fill="#50d2dc"/><rect x="312" y="70" width="16" height="20" rx="2" fill="#409cff"/><rect x="342" y="70" width="16" height="20" rx="2" fill="#46c878"/>
+<text x="320" y="202" text-anchor="middle" font-family="monospace" font-size="58" font-weight="bold" fill="#409cff">Packet<tspan fill="#e6eaf0">Deck</tspan></text>
+<text x="320" y="248" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#e6eaf0">Data Packet Radio on the MESHCORE network</text>
+<text x="320" y="298" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#8c94a0">LilyGO T-Deck Plus · By S. van Ingen</text>
+</svg>
