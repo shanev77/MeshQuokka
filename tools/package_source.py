@@ -7,7 +7,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'release/MeshQuokka-Source.zip'
 EXCLUDED = {'.git', '.pio', '__pycache__', 'private-backups', 'build', 'release',
-            'node_modules', '.venv', '.platformio', '.cache', 'Documents'}
+            'build-diagnostics', 'node_modules', '.venv', '.platformio', '.cache', 'Documents'}
 
 def main():
     count = 0

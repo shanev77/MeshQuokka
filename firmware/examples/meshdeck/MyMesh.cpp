@@ -282,6 +282,42 @@ uint8_t MyMesh::getExtraAckTransmitCount() const {
   return _prefs.multi_acks;
 }
 
+// Bind diagnostics to the actual pool slot, including delayed inbound packets.
+void MyMesh::logRx(mesh::Packet* pkt, int, float) {
+  auto& e = _activity[(_activityHead + 31) % 32];
+  e.packet = pkt; e.outcome = "Queued";
+}
+void MyMesh::logRxRejected(const char* reason) {
+  _activity[(_activityHead + 31) % 32].outcome = reason;
+}
+void MyMesh::logRxError(int error) {
+  auto& e = _activity[_activityHead]; e = RxActivity(); e.at = millis();
+  e.outcome = error == RADIOLIB_ERR_CRC_MISMATCH ? "Radio CRC error" : "Radio read error";
+  _activityHead = (_activityHead + 1) % 32;
+  if (_activityCount < 32) ++_activityCount;
+  if (Serial) Serial.printf("[rxresult] radio_error=%d\n", error);
+}
+mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
+  _processingActivity = nullptr;
+  for (unsigned i=0;i<_activityCount;i++) {
+    auto& e = _activity[(_activityHead + 31 - i) % 32];
+    if (e.packet == pkt) { _processingActivity = &e; break; }
+  }
+  if (_processingActivity) {
+    _processingActivity->outcome = pkt->isRouteDirect() && pkt->getPathHashCount() > 0
+      ? "Direct transit" : "Handled (non-chat)";
+  }
+  auto result = BaseChatMesh::onRecvPacket(pkt);
+  if (_processingActivity) {
+    if (Serial) Serial.printf("[rxresult] type=%u hops=%u width=%u scope=%u result=%s\n",
+      _processingActivity->type, _processingActivity->hops, _processingActivity->width,
+      _processingActivity->scoped, _processingActivity->outcome);
+    _processingActivity->packet = nullptr;
+  }
+  _processingActivity = nullptr;
+  return result;
+}
+
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   RxActivity& activity = _activity[_activityHead];
   activity = RxActivity(); activity.at = millis(); activity.length = len;
@@ -2694,5 +2730,46 @@ bool MyMesh::checkChannelDecode() {
     releasePacket(pkt);
   }
   _channelTest=false; _channelTestExpected=nullptr;
+  return ok;
+}
+
+// Isolated parser + duplicate-table regression; never sends or modifies live tables.
+bool MyMesh::checkRxDecode() {
+  bool ok = true;
+  for (unsigned route=0;route<4;route++) for (unsigned width=1;width<=3;width++) {
+    for (unsigned hops : {1U,7U,64U/width}) {
+      if (hops > 63) hops=63;
+      mesh::Packet original, parsed, restored;
+      original.header = (PAYLOAD_TYPE_GRP_TXT << 2) | route;
+      original.transport_codes[0]=0x1234; original.transport_codes[1]=0xabcd;
+      original.setPathHashSizeAndCount(width,hops);
+      memset(original.path,0x5a,original.getPathByteLen());
+      original.payload_len=4; memcpy(original.payload,"data",4);
+      uint8_t raw[MAX_TRANS_UNIT]; unsigned n=original.writeTo(raw);
+      RxActivity activity; activity.decode(raw,n);
+      ok &= tryParsePacket(&parsed,raw,n) && restored.readFrom(raw,n);
+      ok &= parsed.getPathHashSize()==width && parsed.getPathHashCount()==hops;
+      ok &= parsed.payload_len==4 && memcmp(parsed.payload,"data",4)==0;
+      ok &= activity.headerValid && activity.width==width && activity.hops==hops;
+      const unsigned endPath=n-4;
+      for(unsigned shortLen=0;shortLen<endPath;shortLen++) {
+        ok &= !tryParsePacket(&parsed,raw,shortLen);
+        ok &= !restored.readFrom(raw,shortLen);
+        activity.decode(raw,shortLen); ok &= !activity.headerValid;
+      }
+    }
+  }
+  mesh::Packet p;
+  uint8_t invalid[][2]={{0x15,0xc0},{0x55,0},{0x15,0xbf}};
+  for (auto& raw:invalid) {
+    RxActivity activity; activity.decode(raw,2);
+    ok &= !tryParsePacket(&p,raw,2) && !activity.headerValid;
+  }
+  SimpleMeshTables isolated;
+  p.header=0x15; p.path_len=0; p.payload_len=8; memcpy(p.payload,"message1",8);
+  ok &= !isolated.hasSeen(&p);
+  p.setPathHashSizeAndCount(2,7); memset(p.path,0xaa,14);
+  ok &= isolated.hasSeen(&p); // same payload via a different relay path
+  p.payload[7]='2'; ok &= !isolated.hasSeen(&p); // distinct message survives
   return ok;
 }

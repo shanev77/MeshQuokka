@@ -118,6 +118,7 @@ bool RadioLibWrapper::isInRecvMode() const {
 }
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
+  _lastRecvError = 0;
   int len = 0;
 #if defined(MESHDECK) && defined(LILYGO_TDECK)
   // A lost GPIO edge must not leave a completed packet stranded in the radio.
@@ -138,6 +139,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
         len = 0;
         n_recv_errors++;
+        _lastRecvError = err;
       } else {
       //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;

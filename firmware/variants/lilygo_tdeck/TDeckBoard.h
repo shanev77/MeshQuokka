@@ -46,20 +46,20 @@ public:
     esp_deep_sleep_start(); // CPU halts here and never returns!
   }
 
-  uint16_t getBattMilliVolts() {
-    #if defined(PIN_VBAT_READ) && defined(ADC_MULTIPLIER)
-      analogReadResolution(12);
-
-      uint32_t raw = 0;
-      for (int i = 0; i < BATTERY_SAMPLES; i++) {
-        raw += analogRead(PIN_VBAT_READ);
-      }
-
-      raw = raw / BATTERY_SAMPLES;
-      return (ADC_MULTIPLIER * raw) / 4096;
-    #else
-      return 0;
-    #endif
+  uint16_t getBattMilliVolts() override {
+    // BAT_ADC measures the switched supply rail through RD2/RD3 (100k/100k).
+    // On USB this rail is above cell voltage: it cannot reveal state of charge.
+    // Use the ESP32 calibration, not an assumed 3.3V full-scale ADC conversion.
+    static uint32_t sampledAt = 0;
+    static uint16_t cached = 0;
+    if (cached && uint32_t(millis()-sampledAt) < 1000) return cached;
+    analogReadResolution(12);
+    analogSetPinAttenuation(PIN_VBAT_READ, ADC_11db);
+    uint32_t sum = 0;
+    for (int i=0;i<BATTERY_SAMPLES;i++) sum += analogReadMilliVolts(PIN_VBAT_READ);
+    cached = (sum * 2 + BATTERY_SAMPLES/2) / BATTERY_SAMPLES;
+    sampledAt = millis();
+    return cached;
   }
 
   const char* getManufacturerName() const{

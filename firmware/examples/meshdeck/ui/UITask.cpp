@@ -1,3 +1,4 @@
+#include "BatteryGauge.h"
 #include "UITask.h"
 #include "MeshQuokkaLogo.h"
 #include "../MyMesh.h"
@@ -1599,12 +1600,7 @@ void UITask::repLogFrom(const ContactInfo& from, const char* text) {
 // ---------------------------------------------------------------- status helpers
 
 int UITask::batteryPercent() const {
-  int mv = getBattMilliVolts();
-  if (mv <= 0) return -1;
-  int pct = (mv - 3350) * 100 / (4200 - 3350);
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
-  return pct;
+  return batteryPercentFromMv(getBattMilliVolts());
 }
 
 int UITask::meshBars() const {

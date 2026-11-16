@@ -1,3 +1,4 @@
+#include "BatteryGauge.h"
 #include "AllScreens.h"
 #include "../MyMesh.h"
 #include <RTClib.h>
@@ -79,10 +80,14 @@ void HomeScreen::draw() {
   char b[16];
   int pct = ui.batteryPercent();
   if (pct >= 0) {
-    snprintf(b, sizeof(b), "%d%%", pct);
+    const int mv=ui.getBattMilliVolts();
+    if (batteryRailExternal(mv)) snprintf(b,sizeof(b),"USB");
+    else snprintf(b, sizeof(b), "%d%%", pct);
     c.setTextColor(pct > 20 ? C_FG_DIM : C_RED);
     c.setCursor(SCREEN_W - 8 - strlen(b) * 6, 8);
     c.print(b);
+    snprintf(b,sizeof(b),"%.2fV",mv/1000.0f);
+    c.setCursor(SCREEN_W-8-strlen(b)*6,18);c.print(b);
   }
   int bars = ui.meshBars();
   for (int i = 0; i < 4; i++) {

@@ -30,6 +30,7 @@ public:
    * \returns 0 if no incoming data, otherwise length of complete packet received.
   */
   virtual int recvRaw(uint8_t* bytes, int sz) = 0;
+  virtual int getLastRecvError() const { return 0; }
 
   /**
    * \returns  estimated transmit air-time needed for packet of 'len_bytes', in milliseconds.
@@ -156,6 +157,8 @@ protected:
 
   virtual void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) { }   // custom hook
 
+  virtual void logRxRejected(const char* reason) {}
+  virtual void logRxError(int error) {}
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
   virtual void logTxFail(Packet* packet, int len) { }

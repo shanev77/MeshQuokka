@@ -1,6 +1,6 @@
 # MeshQuokka quick start
 
-Version 0.1.0_261115c - LilyGO T-Deck Plus 915 MHz.
+Version 0.1.0_261116c - LilyGO T-Deck Plus 915 MHz.
 
 The complete current operating and technical reference is
 [the PDF manual](docs/MeshQuokka-User-Manual.pdf), with editable source in

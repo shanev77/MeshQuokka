@@ -845,7 +845,7 @@ Unread state is now stored in each retained message's flags without changing the
 
 Public channel messages are broadcasts; mentioning a name in the message does not direct delivery to that person. MeshQuokka does not filter channel messages by its node name. An online observer may receive traffic from locations or paths your radio cannot hear; MeshQuokka does not download that observer's channel history.
 
-In Heard > Traffic, **Ch RX** counts group text/data packets reaching Mesh processing, **decoded** counts successful channel authentication/decryption, and **saved** counts text messages inserted into local RAM chat history. They cover all configured/observed channels, not Public alone. Raw radio receive errors appear separately at the top. The history now displays five packet rows to leave room for these counters.
+In Heard > Traffic, **Ch RX** counts group text/data packets reaching Mesh processing, **decoded** counts successful channel authentication/decryption, and **saved** counts text messages inserted into local RAM chat history. They cover all configured/observed channels, not Public alone. Raw radio receive errors appear separately at the top. The history displays four packet rows with per-packet outcomes below these counters.
 
 **No key** means no configured channel hash matched; **MAC** means matching hashes existed but authentication/decryption failed; **dup** means already-seen channel packets; **drop** combines short packets, unsupported/malformed text and inability to allocate/store a conversation. Successful decode and saved counts can differ for data packets rather than text. Saved means accepted into the in-memory history; normal delayed flash persistence still applies.
 
@@ -854,3 +854,24 @@ Terminal `channelstats` prints all stage counters separately. `channeltest` perf
 # 35. MeshQuokka branding
 
 Version 0.1.0_261115c renames the application to MeshQuokka. Home, About, boot, remote-screen UI and application diagnostics use the new name. A native 96 x 96 quokka/network vector mark appears at boot and in About. The logo is compiled into the firmware and needs no SD card or internet access. This is a branding update: network protocol, channel keys, radio settings, message storage paths and the MeshCore Bluetooth compatibility prefix remain unchanged. Editable logo sources and SVG/PNG exports are included under assets.
+
+
+# 36. Receiver audit and packet outcomes
+
+Version 0.1.0_261116b extends Heard > Traffic with an outcome on each of the latest 32 receive events. It records completed frames before Mesh parsing, and radio CRC/read errors without passing corrupt data to the protocol. Four rows are visible; use up/down to scroll. History is bounded RAM and resets on reboot; it is not a complete long-term capture. Packets below the radio detection threshold cannot be listed.
+
+Outcomes distinguish queued frames, malformed headers/paths, unsupported payload versions, full packet pool, channel key/MAC failure, channel duplicates, saved chats, valid/old/self/duplicate/bad-signature adverts, and radio CRC/read errors. Scoped traffic is labelled. Direct transit and handled non-chat are general routing/processing classifications, not proof of application delivery. Some non-chat types do not yet have detailed rejection instrumentation. Relay prefixes are unverified identifiers. No decryption or signature checks are bypassed.
+
+The receive path accepts 1-, 2- and 3-byte hop hashes. Path mode 3 (four-byte hashes) is reserved and rejected. A two-byte outbound preference does not restrict incoming frames to two-byte paths. Incoming scoped floods are not blocked by a local region filter. The contact auto-add hop limit does not hide valid discoveries from Heard. Continuous listening remains enabled on Home, other screens and screen sleep, except during ordinary transmit activity; periodic four-second receiver resets remain disabled.
+
+Terminal `rxtest` runs isolated checks of the actual decoder for every route type and all supported widths, including seven-hop and boundary-length paths, truncated frames and reserved modes. A private duplicate table verifies that the same message arriving by another path is suppressed while a different message survives. `traffictest`, `channeltest` and `unreadtest` remain one-shot RAM checks. They send no test packets and do not populate real chats or contacts. `traffic` prints the retained outcomes to USB. No external monitoring process is required for normal operation.
+
+The 16 November audit of the preceding firmware found five valid advert receptions and zero group-channel packets reaching channel processing. Heard included MyalupDune, 6ACX-RMOB, 6ZE-Peppy Bch and Bunbury Public room. A subsequent user-triggered advert returned over one hop and was correctly classified as a self-return. This verifies some live reception, not equal coverage to all online observers. Missing Public traffic remains an RF/network-versus-earlier-rejection question to measure over time; increased discovery is not established by this update.
+
+# 37. Battery voltage and USB indication
+
+The T-Deck schematic connects BAT_ADC (GPIO4) to the switched supply rail through two 100-kilohm resistors. On USB, that rail can exceed the single-cell battery voltage. Consequently it cannot report actual battery charge while USB supplies the board. The Home corner shows USB when the measured rail exceeds 4.35 V and displays the measured voltage beneath it. This is voltage-based power-source inference, not a charger-complete signal.
+
+The ADC now uses the ESP32 calibrated millivolt API with explicit 11 dB attenuation, an eight-sample average and a one-second cache. Battery operation uses the voltage estimate: 4.07 V or above clamps to 100% (version 0.1.0_261116c, calibrated to the owner-confirmed full-charge supply reading after unplugging), 3.35 V or below clamps to 0%, and intermediate values interpolate linearly. 3.35 V is a conservative usable-empty indication, not a verified hardware shutdown point. Percentage is approximate: cell chemistry, load, temperature and age affect voltage. Unplugging can change the measured rail immediately; software cannot infer the cell's charge from the higher USB rail.
+
+Terminal `battery` reports the measured rail and its interpretation. `batterytest` checks clamping, monotonic percentages and USB classification without changing settings or charging behavior. A cell-voltage comparison with an independent meter is required for precise hardware calibration.

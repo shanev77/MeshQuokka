@@ -46,17 +46,19 @@ void LastHeardScreen::draw() {
     c.printf("No key %lu MAC %lu dup %lu drop %lu",(unsigned long)m->channelCount(mesh::Mesh::CH_NO_KEY),(unsigned long)m->channelCount(mesh::Mesh::CH_BAD_MAC),(unsigned long)m->channelCount(mesh::Mesh::CH_DUPLICATE),(unsigned long)(m->channelCount(mesh::Mesh::CH_SHORT)+m->channelCount(mesh::Mesh::CH_BAD_TEXT)+m->channelCount(mesh::Mesh::CH_STORE_FAILED)));
     int count=m->activityCount();
     if (_trafficTop >= count) _trafficTop=count ? count-1 : 0;
-    for (int row=0;row<5 && _trafficTop+row<count;row++) {
+    for (int row=0;row<4 && _trafficTop+row<count;row++) {
       const RxActivity* e=m->activityAt(_trafficTop+row);
-      int y=LH_TOP+54+row*23;
+      int y=LH_TOP+54+row*31;
       c.setTextColor(C_FG); c.setCursor(6,y);
       c.printf("%lus %-11s %dB %ddBm %+.1f", (unsigned long)((millis()-e->at)/1000),e->label(),e->length,e->rssi,e->snr4/4.0f);
       c.setTextColor(C_FG_FAINT);c.setCursor(6,y+10);
       if (e->headerValid) c.printf("%u hops %uB/path  relay: %s",e->hops,e->width,e->relay[0]?e->relay:"--");
-      else c.print("Header rejected; no identity inferred");
+      else c.print("No usable packet header");
+      c.setTextColor(C_CYAN);c.setCursor(6,y+20);
+      c.printf("%s%s",e->scoped ? "Scoped: " : "",e->outcome);
     }
     if (!count) {c.setCursor(10,LH_TOP+64);c.print("Awaiting radio packets...");}
-    c.setCursor(6,SCREEN_H-10);c.print("Up/down: history. Relay ID is unverified.");
+    c.setCursor(6,SCREEN_H-10);c.print("Latest 32 RX events. Up/down: history.");
     return;
   }
 

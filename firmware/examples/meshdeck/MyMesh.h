@@ -95,7 +95,11 @@ class MyMesh : public BaseChatMesh, public DataStoreHost {
   const char* _channelTestExpected = nullptr;
   uint32_t _channelCounts[mesh::Mesh::CH_OUTCOME_COUNT] = {};
   void onChannelDiagnostic(mesh::Mesh::ChannelOutcome outcome) override {
-    if (!_channelTest && outcome < mesh::Mesh::CH_OUTCOME_COUNT) ++_channelCounts[outcome];
+    if (!_channelTest && outcome < mesh::Mesh::CH_OUTCOME_COUNT) {
+      ++_channelCounts[outcome];
+      static const char* labels[] = {"Channel received", "Decrypted", "No channel key", "Bad channel MAC", "Duplicate", "Short channel", "Unsupported text", "Delivered", "Saved to chat", "Chat store failed"};
+      if (_processingActivity) _processingActivity->outcome = labels[outcome];
+    }
   }
   bool _advertWasUnknown = false;
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp,
@@ -104,11 +108,16 @@ class MyMesh : public BaseChatMesh, public DataStoreHost {
     BaseChatMesh::onAdvertRecv(packet, id, timestamp, data, len);
     _advertWasUnknown = false;
   }
+  RxActivity* _processingActivity = nullptr;
   RxActivity _activity[32];
   unsigned _activityHead = 0, _activityCount = 0;
   uint32_t _advertCounts[mesh::Mesh::ADV_OUTCOME_COUNT] = {};
   void onAdvertDiagnostic(mesh::Mesh::AdvertOutcome outcome) override {
-    if (outcome < mesh::Mesh::ADV_OUTCOME_COUNT) ++_advertCounts[outcome];
+    if (outcome < mesh::Mesh::ADV_OUTCOME_COUNT) {
+      ++_advertCounts[outcome];
+      static const char* labels[] = {"Short advert", "Own advert return", "Valid advert", "Bad signature", "Duplicate advert", "Bad advert data", "Old advert"};
+      if (_processingActivity) _processingActivity->outcome = labels[outcome];
+    }
   }
 public:
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
@@ -124,6 +133,7 @@ public:
   uint32_t channelCount(mesh::Mesh::ChannelOutcome outcome) const { return _channelCounts[outcome]; }
   void recordChannelStored(bool ok) { onChannelDiagnostic(ok ? mesh::Mesh::CH_STORED : mesh::Mesh::CH_STORE_FAILED); }
   bool checkChannelDecode();
+  bool checkRxDecode();
   unsigned activityCount() const { return _activityCount; }
   const RxActivity* activityAt(unsigned newest) const {
     return newest < _activityCount ? &_activity[(_activityHead + 31 - newest) % 32] : nullptr;
@@ -190,6 +200,10 @@ protected:
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
+  mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
+  void logRx(mesh::Packet* pkt, int len, float score) override;
+  void logRxRejected(const char* reason) override;
+  void logRxError(int error) override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;

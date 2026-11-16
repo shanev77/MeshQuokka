@@ -6,8 +6,8 @@ For LilyGO T-Deck Plus.
 source and binaries, based on MeshCore plus the MIT-licensed MeshDeck local UI.
 No browser application or simulator substitutes for the firmware.
 
-Target: user-confirmed 915 MHz LilyGO T-Deck Plus. USB interrogation on
-14 November 2026 identified ESP32-S3 revision v0.2, 40 MHz crystal, 16 MB quad
+
+Target: LilyGO T-Deck Plus. ESP32-S3 revision v0.2, 40 MHz crystal, 16 MB quad
 flash. Runtime health reports show PSRAM in use; the home/setup screen and trackball
 were confirmed by the user. Onboard GPS module revision remains unverified.
 See `tests/SOFTWARE_RESULTS.md` and `tests/HARDWARE_ACCEPTANCE.md` for evidence.
@@ -18,6 +18,7 @@ See `tests/SOFTWARE_RESULTS.md` and `tests/HARDWARE_ACCEPTANCE.md` for evidence.
 * `COMPATIBILITY.md`: actual functionality, restrictions and outstanding work.
 * `FLASHING.md`: image layout, backup requirements and recovery.
 * `USER_GUIDE.md`: controls and operating instructions.
+* `docs/MeshQuokka-User-Manual.pdf`: complete PDF manual (included in source distribution).
 * `docs/USER_MANUAL.md`: editable complete manual source.
 * `tests/HARDWARE_ACCEPTANCE.md`: tests still requiring the device and peers.
 
@@ -86,7 +87,7 @@ or encrypted NVS. UI passwords are masked and are excluded from diagnostics,
 but physical flash access can recover stored credentials. Do not represent
 this firmware as providing hardware-backed key protection.
 
-## Current release: 0.1.0_261115c
+## Current release: 0.1.0_261116c
 
 GPS positioning is confirmed outdoors and in live USB diagnostics. Home uses
 an enlarged blue MeshQuokka title; the copyright remains in About.
@@ -102,6 +103,7 @@ and remote-screen transfers service the mesh loop. A signed nearby room advert
 was received without Discover during testing, but sparse long-duration traffic
 still requires field comparison; this is not a claim of complete radio qualification.
 
-Private backups, serial logs, device credentials and build caches are excluded from source bundles.
+The complete updated PDF is `docs/MeshQuokka-User-Manual.pdf`. Private backups,
+serial logs, device credentials and build caches are excluded from source bundles.
 
-Version x adds a discovery sound for new nodes, including while the screen sleeps. It honors Sound/Volume and queues speaker playback off the radio/UI loop. Both screen-on and screen-asleep previews are user-confirmed.
+Version x adds a discovery ding for new nodes, including while the screen sleeps. It honors Sound/Volume and queues speaker playback off the radio/UI loop. Both screen-on and screen-asleep previews are user-confirmed.

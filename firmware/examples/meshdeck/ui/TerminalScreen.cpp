@@ -1,3 +1,4 @@
+#include "BatteryGauge.h"
 #include "AllScreens.h"
 #include "../MyMesh.h"
 #include <helpers/TxtDataHelpers.h>
@@ -76,6 +77,14 @@ void TerminalScreen::execCommand(const char* line_in) {
     ui.termLog(C_TERM_SYS, "freq <MHz> | sf <7-12> | bw <kHz> | cr <5-8> | power <dBm>");
     ui.termLog(C_TERM_SYS, "name <newname> | time <epoch> | clear | reboot");
     ui.termLog(C_TERM_SYS, "rfcheck | rfclear | rxrecover <0|4> | rfswitch <0|1>");
+  } else if (strcmp(line, "battery") == 0) {
+    int mv=ui.getBattMilliVolts();
+    ui.termLog(C_TERM_SYS,"Supply %dmV %s percent=%d",mv,batteryRailExternal(mv)?"USB (cell unknown)":"battery estimate",batteryPercentFromMv(mv));
+  } else if (strcmp(line, "batterytest") == 0) {
+    bool ok=batteryPercentFromMv(0)==-1 && batteryPercentFromMv(3000)==0 && batteryPercentFromMv(3350)==0 && batteryPercentFromMv(3710)==50 && batteryPercentFromMv(4070)==100 && batteryPercentFromMv(4200)==100 && batteryPercentFromMv(5000)==100;
+    for(int mv=3350;mv<5000;mv++) ok &= batteryPercentFromMv(mv)<=batteryPercentFromMv(mv+1);
+    ok &= !batteryRailExternal(4200) && batteryRailExternal(4500);
+    ui.termLog(C_TERM_SYS,"Battery bounds/monotonicity/USB: %s",ok?"PASS":"FAIL");
   } else if (strcmp(line, "rfcheck") == 0) {
     uint8_t frequency[4]={},sync[2]={},gain=0;
     int f=radio.readRegister(RADIOLIB_SX126X_REG_RF_FREQUENCY_0,frequency,4);
@@ -122,6 +131,8 @@ void TerminalScreen::execCommand(const char* line_in) {
   } else if (strcmp(line, "advertf") == 0) {
     m->advertFlood();
     ui.termLog(C_TERM_TX, "flood advert sent");
+  } else if (strcmp(line,"rxtest")==0) {
+    ui.termLog(C_TERM_SYS,"RX paths/scopes/bounds/dedup: %s",m->checkRxDecode()?"PASS":"FAIL");
   } else if (strcmp(line,"channeltest")==0) {
     ui.termLog(C_TERM_SYS,"Channel decoder (general + named text): %s",m->checkChannelDecode()?"PASS":"FAIL");
   } else if (strcmp(line,"channelstats")==0) {
@@ -192,6 +203,7 @@ void TerminalScreen::execCommand(const char* line_in) {
       const RxActivity* e=m->activityAt(i);
       ui.termLog(C_TERM_SYS,"%lus %s len=%u rssi=%d snr=%.2f hops=%u width=%u relay=%s",
         (unsigned long)((millis()-e->at)/1000),e->label(),e->length,e->rssi,e->snr4/4.0f,e->hops,e->width,e->relay);
+      ui.termLog(C_TERM_SYS,"  scope=%u result=%s",e->scoped,e->outcome);
     }
   } else if (strcmp(line, "contacts") == 0) {
     int n = m->getNumContacts();

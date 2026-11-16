@@ -180,6 +180,7 @@ bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
 
   pkt->payload_len = len - i;  // payload is remainder
   if (pkt->payload_len > sizeof(pkt->payload)) {
+    logRxRejected("Payload too large");
     MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
     return false;
   }
@@ -196,11 +197,13 @@ void Dispatcher::checkRecv() {
   {
     uint8_t raw[MAX_TRANS_UNIT+1];
     int len = _radio->recvRaw(raw, MAX_TRANS_UNIT);
+    if (_radio->getLastRecvError()) logRxError(_radio->getLastRecvError());
     if (len > 0) {
       logRxRaw(_radio->getLastSNR(), _radio->getLastRSSI(), raw, len);
 
       pkt = _mgr->allocNew();
       if (pkt == NULL) {
+        logRxRejected("Packet pool full");
         MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): WARNING: received data, no unused packets available!", getLogDateTime());
       } else {
         if (tryParsePacket(pkt, raw, len)) {

@@ -21,6 +21,7 @@ protected:
   virtual bool receiveDonePending() { return false; }
   uint32_t _last_irq_poll=0, _recovered_rx_irqs=0;
   uint32_t _agc_resets=0;
+  int _lastRecvError=0;
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = n_recv_errors = 0; }
@@ -28,6 +29,7 @@ public:
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
   int recvRaw(uint8_t* bytes, int sz) override;
+  int getLastRecvError() const override { return _lastRecvError; }
   uint32_t getEstAirtimeFor(int len_bytes) override;
   bool startSendRaw(const uint8_t* bytes, int len) override;
   bool isSendComplete() override;

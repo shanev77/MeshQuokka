@@ -1,6 +1,6 @@
 # Compatibility and completion status
 
-Version: 0.1.0_261115c. This is a development implementation with a successful
+Version: 0.1.0_261116c. This is a development implementation with a successful
 ESP32 build, software checks and a basic device smoke test; it is **not the completed production firmware
 described in the project brief**. Hardware acceptance remains open.
 
